@@ -41,7 +41,7 @@
 
     <ItemGroup>
         <Reference Include="ShapezShifter">
-            <HintPath>$(SPZ2_PERSISTENT)\mods\ShapezShifter\ShapezShifter.dll</HintPath>
+            <HintPath>$(SPZ2_SHIFTER)</HintPath>
             <Private>False</Private>
         </Reference>
         <Reference Include="SPZGameAssembly">
