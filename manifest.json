@@ -2,10 +2,10 @@
 	"$schema": "https://shapez2.raphdf201.net/assets/manifestSchema.json",
 	"Version": "1.0.0",
 	"Description": "Expression gate, inspired by the GMod Wiremod Expression2 gate.",
-	"Author": "Ross Hadden <rosshadden@gmail.com>",
+	"Author": "rawsp33d",
 	"SavedModVersionCompabilityRangeWithSelf": "1.*.*",
 	"GameVersionSupportRange": "^1.0.0",
-	"AffectsSaveGames": true,
+	"AffectsSaveGames": false,
 	"DisablesAchievements": false,
 	"Assemblies": [
 		"Expr.dll"

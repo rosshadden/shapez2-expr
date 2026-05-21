@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<TargetFramework>netstandard2.1</TargetFramework>
+		<Nullable>disable</Nullable>
+		<LangVersion>14</LangVersion>
+		<RootNamespace>Expr.Scripting</RootNamespace>
+		<AssemblyName>Expr.Eagle</AssemblyName>
+		<EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+	</PropertyGroup>
+
+	<PropertyGroup>
+		<OutputPath>$(SPZ2_PERSISTENT)\mods\Expr</OutputPath>
+		<AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+		<CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<Compile Include="Eagle/**/*.cs" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Reference Include="Eagle">
+			<HintPath>Eagle/vendor/Eagle.dll</HintPath>
+			<Private>true</Private>
+		</Reference>
+		<Reference Include="System.Collections.Immutable">
+			<HintPath>Eagle/vendor/System.Collections.Immutable.dll</HintPath>
+			<Private>true</Private>
+		</Reference>
+		<Reference Include="System.Reflection.Metadata">
+			<HintPath>Eagle/vendor/System.Reflection.Metadata.dll</HintPath>
+			<Private>true</Private>
+		</Reference>
+		<Reference Include="System.Security.Cryptography.Pkcs">
+			<HintPath>Eagle/vendor/System.Security.Cryptography.Pkcs.dll</HintPath>
+			<Private>true</Private>
+		</Reference>
+		<Reference Include="Core">
+			<HintPath>$(SPZ2_PATH)\Core.dll</HintPath>
+			<Private>False</Private>
+		</Reference>
+	</ItemGroup>
+</Project>

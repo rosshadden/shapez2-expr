@@ -1,0 +1,15 @@
+using Core.Factory;
+using ShapezShifter.Flow.Atomic;
+using ShapezShifter.Hijack;
+
+namespace Expr;
+
+public class GateSimulationFactoryBuilder
+	: IBuildingSimulationFactoryBuilder<GateSimulation, GateSimulationState, EmptyCustomSimulationConfiguration> {
+	public IFactory<GateSimulationState, GateSimulation> BuildFactory(
+		SimulationSystemsDependencies deps,
+		out EmptyCustomSimulationConfiguration config) {
+		config = new EmptyCustomSimulationConfiguration();
+		return new LambdaFactory<GateSimulationState, GateSimulation>(s => new GateSimulation(s));
+	}
+}
