@@ -22,12 +22,14 @@ public class GateSimulation : Simulation<GateSimulationState>, ISignalSimulation
 
 	private readonly SignalConductorInput _in;
 	private readonly SignalConductorOutput _out = new();
+	private readonly SignalCodec _codec;
 	private IScriptedGate _gate;
 	private string _loadedScript;
 	private bool _loggedFirstTick;
 
-	public GateSimulation(GateSimulationState state) : base(state) {
+	public GateSimulation(GateSimulationState state, SignalCodec codec) : base(state) {
 		_in = new SignalConductorInput(state.In0);
+		_codec = codec;
 	}
 
 	public int NumSignalProviders => 1;
@@ -48,11 +50,11 @@ public class GateSimulation : Simulation<GateSimulationState>, ISignalSimulation
 
 			ISignal output;
 			if (_gate != null) {
-				var inEncoded = SignalCodec.Encode(sig);
+				var inEncoded = _codec.Encode(sig);
 				_gate.SetInput(InLabel, inEncoded);
 				var ok = _gate.Tick();
 				var outEncoded = ok ? _gate.GetOutput(OutLabel) : null;
-				output = ok ? SignalCodec.Decode(outEncoded) : NullSignal.Instance;
+				output = ok ? _codec.Decode(outEncoded) : NullSignal.Instance;
 				if (!_loggedFirstTick) {
 					_loggedFirstTick = true;
 					Log?.Info?.Log($"[Expr] gate: first tick ran. in(a)='{inEncoded}', tickOk={ok}, out(b)='{outEncoded}', pushedSignal={output}");

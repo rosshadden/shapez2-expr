@@ -10,6 +10,7 @@ public class GateSimulationFactoryBuilder
 		SimulationSystemsDependencies deps,
 		out EmptyCustomSimulationConfiguration config) {
 		config = new EmptyCustomSimulationConfiguration();
-		return new LambdaFactory<GateSimulationState, GateSimulation>(s => new GateSimulation(s));
+		var codec = new SignalCodec(deps.ShapeRegistry, deps.ShapeIdManager, deps.Mode.ShapeColorScheme);
+		return new LambdaFactory<GateSimulationState, GateSimulation>(s => new GateSimulation(s, codec));
 	}
 }
