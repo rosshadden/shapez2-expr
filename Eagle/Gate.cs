@@ -7,98 +7,125 @@ using Eagle._Interfaces.Public;
 
 namespace Expr.Scripting;
 
-public class Gate : IDisposable {
+public class Gate : IScriptedGate {
 	public sealed class PortInfo {
 		public string Name;
 		public string TypeName;
 	}
 
-	public readonly List<PortInfo> Inputs = new();
-	public readonly List<PortInfo> Outputs = new();
 	public readonly Dictionary<string, string> PersistTypes = new();
 	public readonly List<string> TriggerOn = new();
-
-	public readonly Dictionary<string, string> InputValues = new();
-	public readonly Dictionary<string, string> OutputValues = new();
 	public readonly Dictionary<string, string> PersistValues = new();
 
 	private readonly ILogger _log;
-	private readonly Interpreter _interp;
-	private readonly string _script;
+	private Interpreter _interp;
+	private string _script;
+	private readonly Dictionary<string, string> _inputs = new();
+	private readonly Dictionary<string, string> _prevTriggerInputs = new();
 
 	public Gate(ILogger log, string script) {
 		_log = log;
-		_script = script;
+		LoadScript(script);
+	}
+
+	public void LoadScript(string script) {
+		_script = script ?? "";
+		_interp?.Dispose();
 
 		Result createResult = null;
+		// NoLibraryUse skips both the standard library (init.eagle) and shell
+		// library — neither is shipped with our bundled Eagle.dll, and core Tcl
+		// commands (set, if, expr, proc) are baked into the interpreter, so we
+		// don't need them.
 		_interp = Interpreter.Create(
 			args: null,
-			createFlags: CreateFlags.Default,
+			createFlags: CreateFlags.Default | CreateFlags.NoLibraryUse,
 			hostCreateFlags: HostCreateFlags.Default,
 			ref createResult);
 		if (_interp == null)
 			throw new InvalidOperationException("Eagle Interpreter.Create failed: " + createResult);
 
+		// Reset declarations — script may have changed which pins it wants to trigger on.
+		PersistTypes.Clear();
+		PersistValues.Clear();
+		TriggerOn.Clear();
+		_prevTriggerInputs.Clear();
+
 		long token = 0;
 		Result addResult = null;
-		_interp.AddIExecute("inputs",  new PortCmd(Inputs),  null, ref token, ref addResult);
-		_interp.AddIExecute("outputs", new PortCmd(Outputs), null, ref token, ref addResult);
 		_interp.AddIExecute("persist", new PersistCmd(this), null, ref token, ref addResult);
 		_interp.AddIExecute("trigger", new TriggerCmd(this), null, ref token, ref addResult);
+
+		// `=` shorthand: `= b $a + 1` ≡ `set b [expr {$a + 1}]`. Treat args as a
+		// numeric expression. For string assignment, use `set` as normal.
+		Result preludeResult = null;
+		_interp.EvaluateScript(
+			"proc = {name args} { upvar 1 $name v; set v [uplevel 1 [list expr [join $args]]] }",
+			ref preludeResult);
+	}
+
+	public void SetInput(string label, string value) {
+		_inputs[label] = value ?? "";
+	}
+
+	// Pulled lazily from the interpreter — the simulation only asks for the
+	// labels it physically has wired up. Pins are bare Tcl variables now,
+	// not array elements: `set b 42` from script → we read $b here.
+	public string GetOutput(string label) {
+		if (_interp == null) return null;
+		Result v = null, err = null;
+		return _interp.GetVariableValue(label, ref v, ref err) == ReturnCode.Ok
+			? v?.ToString()
+			: null;
 	}
 
 	public bool Tick() {
+		if (ShouldSkip()) return true;
+
 		Result setErr = null;
-		foreach (var p in Inputs) {
-			InputValues.TryGetValue(p.Name, out var v);
-			_interp.SetVariableValue(p.Name, v ?? "0", ref setErr);
-		}
-		foreach (var kv in PersistTypes) {
-			PersistValues.TryGetValue(kv.Key, out var v);
-			_interp.SetVariableValue(kv.Key, v ?? "0", ref setErr);
-		}
+		foreach (var kv in _inputs)
+			_interp.SetVariableValue(kv.Key, kv.Value, ref setErr);
+		foreach (var kv in PersistValues)
+			_interp.SetVariableValue(kv.Key, kv.Value, ref setErr);
 
 		Result evalResult = null;
 		var rc = _interp.EvaluateScript(_script, ref evalResult);
 		if (rc != ReturnCode.Ok) {
-			_log.Error?.Log($"[Expr] Eagle eval failed: {evalResult}");
+			var preview = _script.Length > 120 ? _script.Substring(0, 120) + "..." : _script;
+			_log?.Error?.Log($"[Expr] Eagle eval failed: {evalResult} | script: {preview}");
 			return false;
 		}
 
-		OutputValues.Clear();
-		foreach (var p in Outputs) {
-			Result v = null, err = null;
-			if (_interp.GetVariableValue(p.Name, ref v, ref err) == ReturnCode.Ok)
-				OutputValues[p.Name] = v?.ToString();
-		}
+		Result v = null, err = null;
 		foreach (var kv in PersistTypes) {
-			Result v = null, err = null;
+			v = null; err = null;
 			if (_interp.GetVariableValue(kv.Key, ref v, ref err) == ReturnCode.Ok)
 				PersistValues[kv.Key] = v?.ToString();
+		}
+
+		if (TriggerOn.Count > 0) {
+			_prevTriggerInputs.Clear();
+			foreach (var label in TriggerOn) {
+				_inputs.TryGetValue(label, out var cur);
+				_prevTriggerInputs[label] = cur ?? "";
+			}
+		}
+		return true;
+	}
+
+	private bool ShouldSkip() {
+		if (TriggerOn.Count == 0) return false;
+		// First eval always runs (snapshot below populates _prevTriggerInputs).
+		if (_prevTriggerInputs.Count == 0) return false;
+		foreach (var label in TriggerOn) {
+			_inputs.TryGetValue(label, out var cur);
+			_prevTriggerInputs.TryGetValue(label, out var prev);
+			if ((cur ?? "") != (prev ?? "")) return false;
 		}
 		return true;
 	}
 
 	public void Dispose() => _interp?.Dispose();
-
-	private sealed class PortCmd : IExecute {
-		private readonly List<PortInfo> _list;
-		public PortCmd(List<PortInfo> list) => _list = list;
-
-		public ReturnCode Execute(Interpreter interpreter, IClientData clientData, ArgumentList arguments, ref Result result) {
-			if (arguments.Count < 3 || (arguments.Count % 2) == 0) {
-				result = $"wrong # args: should be \"{arguments[0]} name type ?name type ...?\"";
-				return ReturnCode.Error;
-			}
-			for (int i = 1; i < arguments.Count; i += 2) {
-				var name = arguments[i].ToString();
-				var type = arguments[i + 1].ToString();
-				if (_list.Exists(p => p.Name == name)) continue;
-				_list.Add(new PortInfo { Name = name, TypeName = type });
-			}
-			return ReturnCode.Ok;
-		}
-	}
 
 	private sealed class PersistCmd : IExecute {
 		private readonly Gate _g;

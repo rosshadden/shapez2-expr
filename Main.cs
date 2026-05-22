@@ -26,21 +26,27 @@ public class Main : IMod {
 		AppDomain.CurrentDomain.AssemblyResolve += ResolveModFolder;
 
 		try {
-			// Load Expr.Eagle.dll and run the Eagle spike to verify Eagle is functional.
+			// Load Expr.Eagle.dll, register the IScriptedGate factory, then run
+			// the Eagle spike to verify the bridge wiring is functional.
 			var bridgeAsm = Assembly.LoadFrom(Path.Combine(ModDir, "Expr.Eagle.dll"));
 			var bridge = bridgeAsm.GetType("Expr.Scripting.Bridge");
-			var runSpike = bridge.GetMethod("RunSpike", BindingFlags.Public | BindingFlags.Static);
-			runSpike.Invoke(null, new object[] { logger });
+			bridge.GetMethod("Initialize", BindingFlags.Public | BindingFlags.Static)
+				.Invoke(null, new object[] { logger });
+			bridge.GetMethod("RunSpike", BindingFlags.Public | BindingFlags.Static)
+				.Invoke(null, new object[] { logger });
 		} catch (Exception ex) {
 			logger.Exception?.LogException(ex);
 		}
 
 		try {
 			DialogStackHolder.Install();
+			ConfirmKeySuppressor.Install();
 		} catch (Exception ex) {
 			logger.Exception?.LogException(ex);
 		}
 
+		GateBuildingModules.Log = logger;
+		GateSimulation.Log = logger;
 		RegisterBuildings(logger);
 	}
 

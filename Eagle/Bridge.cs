@@ -4,16 +4,22 @@ using Core.Logging;
 namespace Expr.Scripting;
 
 public static class Bridge {
+	// Edge counter: on each rising edge of input a, increment a persisted
+	// counter and publish on b. Exercises the bare-pin Tcl surface and the
+	// `=` shorthand for arithmetic.
 	private const string EdgeCounterScript = @"
-inputs   trig number
-outputs  count number
 persist  n number 0  prev number 0
-trigger  trig
+trigger  a
 
-if {$trig > 0 && $prev == 0} { incr n }
-set prev  $trig
-set count $n
+if {$a > 0 && $prev == 0} { = n $n + 1 }
+set prev $a
+set b    $n
 ";
+
+	public static void Initialize(ILogger log) {
+		ScriptedGateFactory.Create = (l, script) => new Gate(l, script);
+		log?.Info?.Log("[Expr] ScriptedGateFactory registered");
+	}
 
 	public static void RunSpike(ILogger log) {
 		try {
@@ -24,18 +30,17 @@ set count $n
 			rendered.Append("[Expr] spike trace:");
 
 			foreach (var t in triggerSeq) {
-				gate.InputValues["trig"] = t.ToString();
+				gate.SetInput("a", t.ToString());
 				if (!gate.Tick()) {
 					log.Error?.Log("[Expr] spike aborted on eval failure");
 					return;
 				}
-				gate.OutputValues.TryGetValue("count", out var c);
-				rendered.Append($" trig={t} -> count={c ?? "?"};");
+				var c = gate.GetOutput("b");
+				rendered.Append($" a={t} -> b={c ?? "?"};");
 			}
 
 			log.Info?.Log(
-				$"[Expr] discovered {gate.Inputs.Count} input(s), {gate.Outputs.Count} output(s), " +
-				$"{gate.PersistTypes.Count} persist; trigger={string.Join(",", gate.TriggerOn)}");
+				$"[Expr] {gate.PersistTypes.Count} persist; trigger={string.Join(",", gate.TriggerOn)}");
 			log.Info?.Log(rendered.ToString());
 			log.Info?.Log("[Expr] Eagle Enterprise Runtime Copyright (c) 2007-2012 by Joseph Mistachkin. Used with permission.");
 		} catch (System.Exception ex) {

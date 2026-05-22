@@ -1,0 +1,19 @@
+<Project>
+	<!--
+	Both csproj files live in the same directory, so without per-project obj/
+	paths their restore artifacts overwrite each other and one project ends up
+	with the other's NuGet props/targets. Set BaseIntermediateOutputPath here
+	(before Microsoft.Common.props is imported) so the SDK's default obj/**
+	exclude picks up these paths as the new obj root for each project.
+	-->
+	<PropertyGroup>
+		<BaseIntermediateOutputPath>obj_$(MSBuildProjectName)/</BaseIntermediateOutputPath>
+		<!--
+		The SDK's default Compile glob excludes literal "obj/**", not
+		"$(BaseIntermediateOutputPath)/**". So after the first build generates
+		obj_Expr/Debug/Expr.AssemblyInfo.cs, the next build picks it up as a
+		source file and fails with duplicate-attribute errors. Re-exclude.
+		-->
+		<DefaultItemExcludes>$(DefaultItemExcludes);obj_*/**</DefaultItemExcludes>
+	</PropertyGroup>
+</Project>

@@ -3,10 +3,14 @@ using System.Collections.Generic;
 using System.Reflection;
 using Core.Localization;
 using UnityEngine;
+using UnityEngine.UI;
+using ILogger = Core.Logging.ILogger;
 
 namespace Expr;
 
 public class GateBuildingModules : IBuildingModules {
+	public static ILogger Log;
+
 	private static readonly FieldInfo DialogInputFieldField =
 		typeof(HUDDialogSimpleInput).GetField("UIInputField", BindingFlags.NonPublic | BindingFlags.Instance);
 	private static readonly FieldInfo InputFieldTmpField =
@@ -34,49 +38,123 @@ public class GateBuildingModules : IBuildingModules {
 		var dlg = stack.Show(Globals.Resources.UIDialogSimpleInputPrefab);
 		dlg.Init(
 			new RawText("Expression Gate Script"),
-			new RawText("Eagle/Tcl source. Enter inserts a newline; click Confirm to apply."),
+			new RawText("Tcl. Pins are bare vars: read $a, write `set b 42` or `= b $a + 1`."),
 			new RawText("Confirm"),
 			new RawText(state.Script ?? ""));
-		var restore = MakeMultiline(dlg);
+		var restore = MakeTextarea(dlg);
+		ConfirmKeySuppressor.Log = Log;
+		ConfirmKeySuppressor.TargetField = GetTmpField(dlg);
+		ConfirmKeySuppressor.Active = true;
 		dlg.OnConfirmed.Register(text => { state.Script = text ?? ""; });
-		if (restore != null) dlg.OnClosed.Register(restore);
+		dlg.OnClosed.Register(() => {
+			ConfirmKeySuppressor.Active = false;
+			ConfirmKeySuppressor.TargetField = null;
+			restore?.Invoke();
+		});
 	}
 
-	// Flips the dialog's TMP_InputField to MultiLineNewline (and bumps the
-	// height) for the duration of this open. Returns an action that puts it
-	// back so the shared dialog prefab doesn't infect other Configure flows.
-	private static Action MakeMultiline(HUDDialogSimpleInput dlg) {
+	private static object GetTmpField(HUDDialogSimpleInput dlg) {
+		var hudInput = DialogInputFieldField?.GetValue(dlg);
+		return hudInput != null ? InputFieldTmpField?.GetValue(hudInput) : null;
+	}
+
+	// Reshapes the shared SimpleInput dialog into a multi-line textarea for our
+	// editor open: MultiLineNewline + top-left alignment + LayoutElement override.
+	// Returns an action that restores the original state so other Configure
+	// flows (constant signal, label, etc.) still see a single-line input.
+	private static Action MakeTextarea(HUDDialogSimpleInput dlg) {
 		try {
 			var hudInput = DialogInputFieldField?.GetValue(dlg);
-			if (hudInput == null) return null;
+			if (hudInput == null) {
+				Log?.Info?.Log("[Expr] MakeTextarea: HUDInputField not found on dialog");
+				return null;
+			}
 			var tmp = InputFieldTmpField?.GetValue(hudInput);
-			if (tmp == null) return null;
-
-			var tmpType = tmp.GetType();
-			var lineTypeProp = tmpType.GetProperty("lineType");
-			object originalLineType = null;
-			if (lineTypeProp != null) {
-				originalLineType = lineTypeProp.GetValue(tmp);
-				lineTypeProp.SetValue(tmp, Enum.Parse(lineTypeProp.PropertyType, "MultiLineNewline"));
+			if (tmp == null) {
+				Log?.Info?.Log("[Expr] MakeTextarea: TMP_InputField not found on HUDInputField");
+				return null;
 			}
 
-			RectTransform rt = null;
-			Vector2 originalSize = default;
-			if (tmp is Component comp) {
-				rt = comp.GetComponent<RectTransform>();
-				if (rt != null) {
-					originalSize = rt.sizeDelta;
-					if (originalSize.y < 240f) rt.sizeDelta = new Vector2(originalSize.x, 240f);
+			var tmpType = tmp.GetType();
+			Log?.Info?.Log($"[Expr] MakeTextarea: TMP type is {tmpType.FullName}");
+
+			// Set both the public property AND the backing field — some TMP versions
+			// guard the property setter, so we belt-and-braces it.
+			Action restoreLineType = null;
+			var lineTypeProp = tmpType.GetProperty("lineType");
+			var lineTypeField = tmpType.GetField("m_LineType", BindingFlags.NonPublic | BindingFlags.Instance);
+			if (lineTypeProp != null) {
+				var enumType = lineTypeProp.PropertyType;
+				var original = lineTypeProp.GetValue(tmp);
+				var multi = Enum.Parse(enumType, "MultiLineNewline");
+				try {
+					lineTypeProp.SetValue(tmp, multi);
+					if (lineTypeField != null) lineTypeField.SetValue(tmp, multi);
+					var verify = lineTypeProp.GetValue(tmp);
+					Log?.Info?.Log($"[Expr] lineType: was={original}, set={multi}, verified={verify}");
+				} catch (Exception ex) {
+					Log?.Error?.Log($"[Expr] lineType set failed: {ex.Message}");
+				}
+				restoreLineType = () => {
+					try {
+						lineTypeProp.SetValue(tmp, original);
+						if (lineTypeField != null) lineTypeField.SetValue(tmp, original);
+					} catch { }
+				};
+			} else {
+				Log?.Info?.Log("[Expr] lineType property missing on TMP_InputField");
+			}
+
+			// Move text alignment to top-left so the cursor starts at the top
+			// rather than vertically-centered (single-line look).
+			Action restoreAlignment = null;
+			var textComponentProp = tmpType.GetProperty("textComponent");
+			object textComponent = textComponentProp?.GetValue(tmp);
+			if (textComponent != null) {
+				var alignmentProp = textComponent.GetType().GetProperty("alignment");
+				if (alignmentProp != null) {
+					var original = alignmentProp.GetValue(textComponent);
+					var topLeft = Enum.Parse(alignmentProp.PropertyType, "TopLeft");
+					alignmentProp.SetValue(textComponent, topLeft);
+					restoreAlignment = () => { try { alignmentProp.SetValue(textComponent, original); } catch { } };
 				}
 			}
 
+			// The dialog uses LayoutGroups, so sizeDelta gets overwritten on the next
+			// layout pass. LayoutElement.preferredHeight on the input GameObject wins.
+			Action restoreLayout = null;
+			if (tmp is Component comp) {
+				var go = comp.gameObject;
+				var le = go.GetComponent<LayoutElement>();
+				bool addedLe = false;
+				if (le == null) {
+					le = go.AddComponent<LayoutElement>();
+					addedLe = true;
+				}
+				var origPreferred = le.preferredHeight;
+				var origMin = le.minHeight;
+				le.preferredHeight = 320f;
+				le.minHeight = 320f;
+				Log?.Info?.Log($"[Expr] LayoutElement preferredHeight set to 320 on {go.name}");
+
+				restoreLayout = () => {
+					try {
+						if (addedLe) UnityEngine.Object.Destroy(le);
+						else {
+							le.preferredHeight = origPreferred;
+							le.minHeight = origMin;
+						}
+					} catch { }
+				};
+			}
+
 			return () => {
-				try {
-					if (lineTypeProp != null && originalLineType != null) lineTypeProp.SetValue(tmp, originalLineType);
-					if (rt != null) rt.sizeDelta = originalSize;
-				} catch { }
+				restoreLineType?.Invoke();
+				restoreAlignment?.Invoke();
+				restoreLayout?.Invoke();
 			};
-		} catch {
+		} catch (Exception ex) {
+			Log?.Exception?.LogException(ex);
 			return null;
 		}
 	}

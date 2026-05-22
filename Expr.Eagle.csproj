@@ -18,6 +18,17 @@
 		<Compile Include="Eagle/**/*.cs" />
 	</ItemGroup>
 
+	<!--
+	Expr.Eagle compile-depends on Expr.dll for IScriptedGate /
+	ScriptedGateFactory. Private=false so we don't double-copy Expr.dll
+	into the mod output (both projects target the same OutputPath).
+	-->
+	<ItemGroup>
+		<ProjectReference Include="Expr.csproj">
+			<Private>false</Private>
+		</ProjectReference>
+	</ItemGroup>
+
 	<ItemGroup>
 		<Reference Include="Eagle">
 			<HintPath>Eagle/vendor/Eagle.dll</HintPath>

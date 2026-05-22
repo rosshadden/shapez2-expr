@@ -3,10 +3,12 @@ using MonoMod.RuntimeDetour;
 
 namespace Expr;
 
-// Mods don't get DI, so we grab the live HUDDialogStack the first time it ticks.
-// HUDDialogStack.Update fires every frame once the HUD is up; we capture and detach.
+// Mods don't get DI, so we grab the live HUDDialogStack from its Update tick.
+// Each scene (main menu vs game) has its own HUDDialogStack; when scenes change
+// the old one stops ticking and the new one takes over, so we always overwrite
+// to track whichever is currently active.
 public static class DialogStackHolder {
-	public static IHUDDialogStack Instance;
+	public static HUDDialogStack Instance;
 	private static Hook _hook;
 
 	public static void Install() {
@@ -16,7 +18,7 @@ public static class DialogStackHolder {
 	}
 
 	private static void Patch(Action<HUDDialogStack, InputDownstreamContext> orig, HUDDialogStack self, InputDownstreamContext ctx) {
-		if (Instance == null) Instance = self;
+		Instance = self;
 		orig(self, ctx);
 	}
 }
