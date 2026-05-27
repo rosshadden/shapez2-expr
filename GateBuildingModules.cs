@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using Core.Localization;
 using UnityEngine;
@@ -25,20 +26,21 @@ public class GateBuildingModules : IBuildingModules {
 		return new IHUDSidePanelModuleData[] {
 			new HUDSidePanelModuleGenericButton.Data(
 				new RawText("Configure"),
-				() => ShowConfigureDialog(state)),
+				() => ShowConfigureDialog(state, gate.InputCount)),
 		};
 	}
 
 	public IEnumerable<IHUDSidePanelModuleData> GetInfoModules(IBuildingDefinition definition) =>
 		Array.Empty<IHUDSidePanelModuleData>();
 
-	private static void ShowConfigureDialog(GateSimulationState state) {
+	private static void ShowConfigureDialog(GateSimulationState state, int inputCount) {
 		var stack = DialogStackHolder.Instance;
 		if (stack == null) return;
 		var dlg = stack.Show(Globals.Resources.UIDialogSimpleInputPrefab);
+		var inputs = string.Join(", ", System.Linq.Enumerable.Range(0, inputCount).Select(i => ((char)('a' + i)).ToString()));
 		dlg.Init(
-			new RawText("Expression Gate Script"),
-			new RawText("Tcl. Pins are bare vars: read $a, write `set b 42` or `= b $a + 1`."),
+			new RawText("Expression Gate"),
+			new RawText($"NCalc expression. Inputs: {inputs}. Examples: a*2   if(a>0,a,0)   if(a in ('r','g'),a,'w')"),
 			new RawText("Confirm"),
 			new RawText(state.Script ?? ""));
 		var restore = MakeTextarea(dlg);
@@ -59,7 +61,7 @@ public class GateBuildingModules : IBuildingModules {
 	}
 
 	// Reshapes the shared SimpleInput dialog into a multi-line textarea for our
-	// editor open: MultiLineNewline + top-left alignment + LayoutElement override.
+	// editor: MultiLineNewline + top-left alignment + LayoutElement override.
 	// Returns an action that restores the original state so other Configure
 	// flows (constant signal, label, etc.) still see a single-line input.
 	private static Action MakeTextarea(HUDDialogSimpleInput dlg) {
@@ -76,10 +78,7 @@ public class GateBuildingModules : IBuildingModules {
 			}
 
 			var tmpType = tmp.GetType();
-			Log?.Info?.Log($"[Expr] MakeTextarea: TMP type is {tmpType.FullName}");
 
-			// Set both the public property AND the backing field — some TMP versions
-			// guard the property setter, so we belt-and-braces it.
 			Action restoreLineType = null;
 			var lineTypeProp = tmpType.GetProperty("lineType");
 			var lineTypeField = tmpType.GetField("m_LineType", BindingFlags.NonPublic | BindingFlags.Instance);
@@ -90,8 +89,6 @@ public class GateBuildingModules : IBuildingModules {
 				try {
 					lineTypeProp.SetValue(tmp, multi);
 					if (lineTypeField != null) lineTypeField.SetValue(tmp, multi);
-					var verify = lineTypeProp.GetValue(tmp);
-					Log?.Info?.Log($"[Expr] lineType: was={original}, set={multi}, verified={verify}");
 				} catch (Exception ex) {
 					Log?.Error?.Log($"[Expr] lineType set failed: {ex.Message}");
 				}
@@ -101,12 +98,8 @@ public class GateBuildingModules : IBuildingModules {
 						if (lineTypeField != null) lineTypeField.SetValue(tmp, original);
 					} catch { }
 				};
-			} else {
-				Log?.Info?.Log("[Expr] lineType property missing on TMP_InputField");
 			}
 
-			// Move text alignment to top-left so the cursor starts at the top
-			// rather than vertically-centered (single-line look).
 			Action restoreAlignment = null;
 			var textComponentProp = tmpType.GetProperty("textComponent");
 			object textComponent = textComponentProp?.GetValue(tmp);
@@ -120,8 +113,6 @@ public class GateBuildingModules : IBuildingModules {
 				}
 			}
 
-			// The dialog uses LayoutGroups, so sizeDelta gets overwritten on the next
-			// layout pass. LayoutElement.preferredHeight on the input GameObject wins.
 			Action restoreLayout = null;
 			if (tmp is Component comp) {
 				var go = comp.gameObject;
@@ -135,7 +126,6 @@ public class GateBuildingModules : IBuildingModules {
 				var origMin = le.minHeight;
 				le.preferredHeight = 320f;
 				le.minHeight = 320f;
-				Log?.Info?.Log($"[Expr] LayoutElement preferredHeight set to 320 on {go.name}");
 
 				restoreLayout = () => {
 					try {

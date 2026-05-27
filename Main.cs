@@ -1,8 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
-using System.Reflection;
+using System.Linq;
 using Core.Localization;
-using Core.Logging;
+using Game.Content.Features.Signals.Connections;
+using Game.Core.Coordinates;
+using Game.Core.Map.Simulation;
 using ShapezShifter.Flow;
 using ShapezShifter.Flow.Atomic;
 using ShapezShifter.Flow.ConnectorData;
@@ -18,26 +21,7 @@ namespace Expr;
 public class Main : IMod {
 	internal static readonly ModFolderLocator Res = ModDirectoryLocator.CreateLocator<Main>().SubLocator("Resources");
 
-	private static readonly string ModDir = Path.GetDirectoryName(typeof(Main).Assembly.Location);
-	private static ILogger _resolverLog;
-
 	public Main(ILogger logger) {
-		_resolverLog = logger;
-		AppDomain.CurrentDomain.AssemblyResolve += ResolveModFolder;
-
-		try {
-			// Load Expr.Eagle.dll, register the IScriptedGate factory, then run
-			// the Eagle spike to verify the bridge wiring is functional.
-			var bridgeAsm = Assembly.LoadFrom(Path.Combine(ModDir, "Expr.Eagle.dll"));
-			var bridge = bridgeAsm.GetType("Expr.Scripting.Bridge");
-			bridge.GetMethod("Initialize", BindingFlags.Public | BindingFlags.Static)
-				.Invoke(null, new object[] { logger });
-			bridge.GetMethod("RunSpike", BindingFlags.Public | BindingFlags.Static)
-				.Invoke(null, new object[] { logger });
-		} catch (Exception ex) {
-			logger.Exception?.LogException(ex);
-		}
-
 		try {
 			DialogStackHolder.Install();
 			ConfirmKeySuppressor.Install();
@@ -51,44 +35,81 @@ public class Main : IMod {
 	}
 
 	private static void RegisterBuildings(ILogger logger) {
-		var groupId = new BuildingDefinitionGroupId("ExprGateGroup");
-		var defId   = new BuildingDefinitionId("ExprGate1x1");
-
-		var connectors = BuildingConnectors.SingleTile()
-			.AddWireInput(WireConnectorConfig.DefaultInput())
-			.AddWireOutput(WireConnectorConfig.DefaultOutput())
-			.Build();
-
-		var building = Building.Create(defId)
-			.WithConnectorData(connectors)
-			.DynamicallyRendering<GateRenderer, GateSimulation, GateDrawData>(new GateDrawData())
-			.WithCopiedStaticDrawData(new BuildingDefinitionId("LogicGateNotInternalVariant"))
-			.WithoutSound()
-			.WithoutSimulationConfiguration()
-			.WithoutEfficiencyData();
-
 		var icon = LoadIcon();
 
-		var group = BuildingGroup.Create(groupId)
-			.WithTitle(new RawText("Expression Gate"))
-			.WithDescription(new RawText("Runs an Eagle/Tcl script on wire signals"))
-			.WithIcon(icon)
-			.AsNonTransportableBuilding()
-			.WithPreferredPlacement(DefaultPreferredPlacementMode.Single)
-			.WithDefaultStructureOverview();
+		for (int n = 1; n <= 3; n++) {
+			var defId = new BuildingDefinitionId($"ExprGate{n}In");
+			var groupId = new BuildingDefinitionGroupId($"ExprGateGroup{n}In");
 
-		AtomicBuildings.Extend()
-			.AllScenarios()
-			.WithBuilding(building, group)
-			.UnlockedAtMilestone(new ByIndexMilestoneSelector(0))
-			.WithDefaultPlacement()
-			.InToolbar(ToolbarElementLocator.Root().ChildAt(2).ChildAt(^1).InsertAfter())
-			.WithSimulation(new GateSimulationFactoryBuilder(), logger)
-			.WithCustomModules(new GateBuildingModules())
-			.WithoutPrediction()
-			.Build();
+			var connectors = BuildConnectors(n);
 
-		logger.Info?.Log("[Expr] ExprGate registered");
+			var building = Building.Create(defId)
+				.WithConnectorData(connectors)
+				.DynamicallyRendering<GateRenderer, GateSimulation, GateDrawData>(new GateDrawData())
+				.WithCopiedStaticDrawData(new BuildingDefinitionId("LogicGateNotInternalVariant"))
+				.WithoutSound()
+				.WithoutSimulationConfiguration()
+				.WithoutEfficiencyData();
+
+			var inputList = string.Join(", ", InputLabels(n));
+			var group = BuildingGroup.Create(groupId)
+				.WithTitle(new RawText($"Expression Gate ({n}in)"))
+				.WithDescription(new RawText($"NCalc expression. Inputs: {inputList}. Output: expression result."))
+				.WithIcon(icon)
+				.AsNonTransportableBuilding()
+				.WithPreferredPlacement(DefaultPreferredPlacementMode.Single)
+				.WithDefaultStructureOverview();
+
+			AtomicBuildings.Extend()
+				.AllScenarios()
+				.WithBuilding(building, group)
+				.UnlockedAtMilestone(new ByIndexMilestoneSelector(0))
+				.WithDefaultPlacement()
+				.InToolbar(ToolbarElementLocator.Root().ChildAt(2).ChildAt(^1).InsertAfter())
+				.WithSimulation(new GateSimulationFactoryBuilder(n), logger)
+				.WithCustomModules(new GateBuildingModules())
+				.WithoutPrediction()
+				.Build();
+		}
+
+		logger.Info?.Log("[Expr] ExprGate 1/2/3-input variants registered");
+	}
+
+	// Builds connector data for an n-input, 1-output gate.
+	// Each input tile stacks northward: tile (0,0) carries input "a" and the East output;
+	// tile (0,1) carries input "b"; tile (0,2) carries input "c".
+	// All inputs face West; the single output faces East at tile (0,0).
+	private static IBuildingConnectorData BuildConnectors(int n) {
+		var ios = new List<IBuildingIO>();
+
+		for (int i = 0; i < n; i++) {
+			ios.Add(new BuildingSignalInput {
+				Position_L = new TileVector { x = 0, y = i },
+				TileDirection = TileDirection.West,
+				_IOType = BuildingSignalIOType.Wire,
+			});
+		}
+
+		ios.Add(new BuildingSignalOutput {
+			Position_L = TileVector.Zero,
+			TileDirection = TileDirection.East,
+			_IOType = BuildingSignalIOType.Wire,
+		});
+
+		var tiles = Enumerable.Range(0, n)
+			.Select(i => new TileVector { x = 0, y = i })
+			.ToArray();
+
+		var bounds = LocalTileBounds.From(TileVector.Zero, new TileVector { y = n - 1 });
+		var center = LocalVector.Lerp((LocalVector)bounds.Min, (LocalVector)bounds.Max, 0.5f);
+
+		return new BuildingConnectorData(ios, tiles, bounds, center, bounds.Dimensions);
+	}
+
+	private static string[] InputLabels(int n) {
+		var labels = new string[n];
+		for (int i = 0; i < n; i++) labels[i] = ((char)('a' + i)).ToString();
+		return labels;
 	}
 
 	private static Sprite LoadIcon() {
@@ -97,27 +118,12 @@ public class Main : IMod {
 			if (File.Exists(path))
 				return FileTextureLoader.LoadTextureAsSprite(path, out _);
 		} catch { }
-		// Fallback: 8x8 white square
 		var tex = new Texture2D(8, 8);
 		var pixels = new Color[64];
 		Array.Fill(pixels, Color.white);
 		tex.SetPixels(pixels);
 		tex.Apply();
 		return Sprite.Create(tex, new Rect(0, 0, 8, 8), new Vector2(0.5f, 0.5f));
-	}
-
-	private static Assembly ResolveModFolder(object sender, ResolveEventArgs args) {
-		var simpleName = new AssemblyName(args.Name).Name;
-		var path = Path.Combine(ModDir, simpleName + ".dll");
-		if (!File.Exists(path)) return null;
-		try {
-			var asm = Assembly.LoadFrom(path);
-			_resolverLog?.Info?.Log($"[Expr] resolved {simpleName} from mod folder");
-			return asm;
-		} catch (Exception ex) {
-			_resolverLog?.Error?.Log($"[Expr] failed to load {path}: {ex.Message}");
-			return null;
-		}
 	}
 
 	public void Dispose() { }

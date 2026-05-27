@@ -4,12 +4,12 @@ using Game.Content.Features.Signals;
 
 namespace Expr;
 
-// Converts between ISignal and the Tcl string representation used inside Eagle.
+// Converts between ISignal and .NET objects / strings for the expression engine.
 //
-// Null/integer: unchanged (null→"0", int→decimal string).
+// ToObject/FromObject: typed round-trip for NCalc (int, string, null).
+// Encode/Decode: string round-trip (kept for logging and future use).
 // Shape (BeltItemSignal wrapping ShapeItem): hash string, e.g. "CuCuCuCu".
 // Color fluid (FluidSignal wrapping ColorFluid): single char code, e.g. "r".
-// All other signal types: encode as "0", decode falls through to NullSignal.
 public class SignalCodec {
 	private readonly IShapeRegistry _shapes;
 	private readonly IShapeIdManager _shapeIds;
@@ -57,6 +57,25 @@ public class SignalCodec {
 			} catch { }
 		}
 
+		return NullSignal.Instance;
+	}
+
+	public object ToObject(ISignal sig) {
+		if (sig == null || sig is NullSignal) return null;
+		if (sig is IntegerSignal i) return i.Value;
+		if (sig is BeltItemSignal b && b.Value is ShapeItem shape) return shape.Definition.Hash;
+		if (sig is FluidSignal f && f.Value is ColorFluid cf) return cf.Color.Code.ToString();
+		return null;
+	}
+
+	public ISignal FromObject(object value) {
+		if (value == null) return NullSignal.Instance;
+		if (value is bool bv) return bv ? IntegerSignal.Get(1) : NullSignal.Instance;
+		if (value is int iv) return IntegerSignal.Get(iv);
+		if (value is long lv) return IntegerSignal.Get((int)lv);
+		if (value is double dv) return IntegerSignal.Get((int)Math.Round(dv));
+		if (value is decimal mv) return IntegerSignal.Get((int)Math.Round(mv));
+		if (value is string sv) return Decode(sv);
 		return NullSignal.Instance;
 	}
 

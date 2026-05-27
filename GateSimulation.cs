@@ -1,5 +1,5 @@
 using System;
-using Expr.Scripting;
+using NCalc;
 using Game.Content.Features.Signals;
 using Game.Content.Features.Signals.Conductor;
 using Game.Content.Features.Signals.Connections;
@@ -10,98 +10,92 @@ using ILogger = Core.Logging.ILogger;
 
 namespace Expr;
 
-// 1×1 gate today: one input pin labeled "a", one output pin labeled "b".
-// Future variants will declare more pins; labels must stay unique across
-// inputs and outputs because Shapez 2 wire connectors are direction-fixed
-// at build time (see shapez2-wire-connector-model memory).
 public class GateSimulation : Simulation<GateSimulationState>, ISignalSimulation, IUpdatableSimulation {
 	public static ILogger Log;
 
-	private const string InLabel  = "a";
-	private const string OutLabel = "b";
+	private static readonly string[] InputLabels = { "a", "b", "c" };
 
-	private readonly SignalConductorInput _in;
+	private readonly SignalConductorInput[] _inputs;
+	private readonly int _inputCount;
 	private readonly SignalConductorOutput _out = new();
 	private readonly SignalCodec _codec;
-	private IScriptedGate _gate;
+	private Expression _expr;
 	private string _loadedScript;
-	private bool _loggedFirstTick;
+	private bool _loggedFirstEval;
 
-	public GateSimulation(GateSimulationState state, SignalCodec codec) : base(state) {
-		_in = new SignalConductorInput(state.In0);
+	public GateSimulation(GateSimulationState state, SignalCodec codec, int inputCount) : base(state) {
 		_codec = codec;
+		_inputCount = inputCount;
+		_inputs = new[] {
+			new SignalConductorInput(state.In0),
+			new SignalConductorInput(state.In1),
+			new SignalConductorInput(state.In2),
+		};
 	}
 
+	public int InputCount => _inputCount;
+
 	public int NumSignalProviders => 1;
-	public int NumSignalReceivers => 1;
+	public int NumSignalReceivers => _inputCount;
 	public ISignalProvider GetSignalProvider(int i) => _out;
-	public ISignalReceiver GetSignalReceiver(int i) => _in;
+	public ISignalReceiver GetSignalReceiver(int i) => _inputs[i];
 
 	public void Update(Ticks startTicks, Ticks deltaTicks) {
 		int n = SignalSimulation.GetAmountOfSignalsThisUpdate(startTicks, deltaTicks);
 		if (n <= 0) return;
 
-		EnsureScriptLoaded();
+		EnsureExpressionLoaded();
 
 		var baseTick = SignalTicks.FromTicks(startTicks);
 		for (int s = 0; s < n; s++) {
 			var tick = baseTick + new SignalTicks(s);
-			_in.TryPopSignal(startTicks, tick, out var sig);
+
+			ISignal[] sigs = new ISignal[_inputCount];
+			for (int i = 0; i < _inputCount; i++)
+				_inputs[i].TryPopSignal(startTicks, tick, out sigs[i]);
 
 			ISignal output;
-			if (_gate != null) {
-				var inEncoded = _codec.Encode(sig);
-				_gate.SetInput(InLabel, inEncoded);
-				var ok = _gate.Tick();
-				var outEncoded = ok ? _gate.GetOutput(OutLabel) : null;
-				output = ok ? _codec.Decode(outEncoded) : NullSignal.Instance;
-				if (!_loggedFirstTick) {
-					_loggedFirstTick = true;
-					Log?.Info?.Log($"[Expr] gate: first tick ran. in(a)='{inEncoded}', tickOk={ok}, out(b)='{outEncoded}', pushedSignal={output}");
+			if (_expr != null) {
+				for (int i = 0; i < InputLabels.Length; i++)
+					_expr.Parameters[InputLabels[i]] = i < _inputCount ? _codec.ToObject(sigs[i]) : null;
+				try {
+					var result = _expr.Evaluate();
+					output = _codec.FromObject(result);
+					if (!_loggedFirstEval) {
+						_loggedFirstEval = true;
+						Log?.Info?.Log($"[Expr] first eval ok -> {result}");
+					}
+				} catch (Exception ex) {
+					if (!_loggedFirstEval) {
+						_loggedFirstEval = true;
+						Log?.Error?.Log($"[Expr] eval error ({ex.GetType().Name}): {ex.Message}");
+					}
+					output = NullSignal.Instance;
 				}
 			} else {
-				// No script (or empty/whitespace, or failed to load): passthrough
-				// so the gate isn't inert when the user first places it AND we
-				// don't pay any Eagle interpreter cost.
-				output = sig ?? NullSignal.Instance;
+				output = sigs[0] ?? NullSignal.Instance;
 			}
 			_out.PushSignal(output, startTicks, tick);
 		}
 	}
 
-	private void EnsureScriptLoaded() {
+	private void EnsureExpressionLoaded() {
 		var script = State.Script ?? "";
 		if (script == _loadedScript) return;
 		_loadedScript = script;
-		_loggedFirstTick = false;
+		_loggedFirstEval = false;
 
-		// Empty/whitespace script: tear down any interpreter so the per-tick
-		// fast path is a pure passthrough. Eagle eval is far too expensive to
-		// run on every signal slot (60+ times/sec) for a no-op script.
 		if (string.IsNullOrWhiteSpace(script)) {
-			_gate?.Dispose();
-			_gate = null;
-			Log?.Info?.Log("[Expr] gate: script cleared, passthrough mode");
+			_expr = null;
 			return;
 		}
 
+		var expr = script.Replace("\r\n", " ").Replace('\n', ' ').Replace('\r', ' ').Trim();
 		try {
-			if (_gate == null) {
-				if (ScriptedGateFactory.Create == null) {
-					Log?.Error?.Log("[Expr] gate: ScriptedGateFactory.Create is null! Bridge.Initialize never ran?");
-					return;
-				}
-				_gate = ScriptedGateFactory.Create.Invoke(Log, script);
-				Log?.Info?.Log($"[Expr] gate: script loaded ({script.Length} chars), _gate={(_gate != null ? "ok" : "NULL!")}");
-			} else {
-				_gate.LoadScript(script);
-				Log?.Info?.Log($"[Expr] gate: script reloaded ({script.Length} chars)");
-			}
+			_expr = new Expression(expr);
 		} catch (Exception ex) {
-			Log?.Error?.Log("[Expr] gate: script load threw");
-			Log?.Exception?.LogException(ex);
-			_gate?.Dispose();
-			_gate = null;
+			Log?.Error?.Log($"[Expr] parse error: {ex.Message}");
+			_expr = null;
 		}
 	}
 }
