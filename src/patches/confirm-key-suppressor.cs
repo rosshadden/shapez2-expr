@@ -5,14 +5,7 @@ using ILogger = Core.Logging.ILogger;
 
 namespace Expr;
 
-// HUDDialog.DoUpdate calls HandleConfirm whenever "global.confirm" is activated,
-// which means Enter normally closes any simple-input dialog. We hook DoUpdate and:
-//   1. Pre-consume "global.confirm" so HandleConfirm doesn't fire.
-//   2. If the editor is open and Enter was just activated, inject '\n' directly
-//      into the bound TMP_InputField at its caret position. This bypasses TMP's
-//      `lineType` logic entirely — we don't depend on MultiLineNewline being set.
-//   3. Clicking the Confirm button still works (it calls HandleConfirm directly).
-//   4. Escape still cancels.
+// Lets enter key insert a newline rather than submitting the dialog.
 public static class ConfirmKeySuppressor {
 	public static bool Active;
 	public static ILogger Log;
@@ -39,7 +32,6 @@ public static class ConfirmKeySuppressor {
 		orig(self, ctx);
 	}
 
-	// Reflection-based so we don't pull a TMPro dependency into Expr.dll.
 	private static void InsertNewlineAtCaret() {
 		var tmp = TargetField;
 		if (tmp == null) return;

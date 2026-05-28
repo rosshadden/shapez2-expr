@@ -101,7 +101,7 @@ public class GateSimulation : Simulation<GateSimulationState>, ISignalSimulation
 
 	private void EvalFunction(string name, FunctionArgs args) {
 		switch (name.ToLower()) {
-			// Predicates
+			// util
 			case "isnull":
 				if (args.Parameters.Length == 1)
 					args.Result = args.Parameters[0].Evaluate() == null;
@@ -115,7 +115,7 @@ public class GateSimulation : Simulation<GateSimulationState>, ISignalSimulation
 					args.Result = _codec.Decode(args.Parameters[0].Evaluate()?.ToString() ?? "") is FluidSignal;
 				break;
 
-			// Shape operations — string manipulation on the hash format (e.g. "CuCuCuCu")
+			// shape operations
 			case "rotate":
 				if (args.Parameters.Length >= 1 && args.Parameters[0].Evaluate() is string rot)
 					args.Result = ShapeRotate(rot);
@@ -143,7 +143,7 @@ public class GateSimulation : Simulation<GateSimulationState>, ISignalSimulation
 					args.Result = ShapeQuadrant(quadHash, Convert.ToInt32(args.Parameters[1].Evaluate()));
 				break;
 
-			// String operations
+			// string operations
 			case "len":
 				if (args.Parameters.Length == 1)
 					args.Result = (args.Parameters[0].Evaluate()?.ToString() ?? "").Length;
@@ -166,7 +166,7 @@ public class GateSimulation : Simulation<GateSimulationState>, ISignalSimulation
 				break;
 			}
 
-			// Persistent memory (per-gate, resets on game load)
+			// persistent memory (per-gate, resets on game load)
 			case "get":
 				if (args.Parameters.Length == 1) {
 					var key = args.Parameters[0].Evaluate()?.ToString() ?? "";

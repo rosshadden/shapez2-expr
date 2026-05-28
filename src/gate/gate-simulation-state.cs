@@ -12,7 +12,6 @@ public class GateSimulationState : ISimulationState {
 	public readonly SignalConductorInputState In2 = new();
 	public string Script = "";
 
-	// Runtime-only — not serialized, reset on game load
 	public long Tick;
 	public readonly Dictionary<string, object> Vars = new();
 

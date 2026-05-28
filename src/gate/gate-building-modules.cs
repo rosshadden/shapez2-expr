@@ -92,7 +92,7 @@ public class GateBuildingModules : IBuildingModules {
 					try {
 						lineTypeProp.SetValue(tmp, original);
 						if (lineTypeField != null) lineTypeField.SetValue(tmp, original);
-					} catch { }
+					} catch {}
 				};
 			}
 
@@ -105,7 +105,7 @@ public class GateBuildingModules : IBuildingModules {
 					var original = alignmentProp.GetValue(textComponent);
 					var topLeft = Enum.Parse(alignmentProp.PropertyType, "TopLeft");
 					alignmentProp.SetValue(textComponent, topLeft);
-					restoreAlignment = () => { try { alignmentProp.SetValue(textComponent, original); } catch { } };
+					restoreAlignment = () => { try { alignmentProp.SetValue(textComponent, original); } catch {} };
 				}
 			}
 
@@ -130,7 +130,7 @@ public class GateBuildingModules : IBuildingModules {
 							le.preferredHeight = origPreferred;
 							le.minHeight = origMin;
 						}
-					} catch { }
+					} catch {}
 				};
 			}
 

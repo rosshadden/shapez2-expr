@@ -23,29 +23,37 @@ I added more vars and functions to it to make it work great with the Shapez 2 ec
 a b c tick
 
 # functions
-rotate(s) paint(s, color) stack(bot, top) layer(s, n) quadrant(s, n)
-isNull(v) isShape(v) isColor(v)
-len(s) substr(s, i, n) concat(a, b, ...)
-get(k) set(k, v)
+rotate(shape) paint(shape, color) stack(bot, top) layer(shape, n) quadrant(shape, n)
+isNull(value) isShape(value) isColor(value)
+len(string) substr(string, start, count) concat(string1, string2, ...)
+get(key) set(key, value)
 ```
 
 I'll add docs for these eventually, but they are mostly intuitive.
 `tick` is an auto-incrementing variable that increments every tick.
 
-`get` and `set` might be a little overpowered.
-They allow you to store values in a key-value store, which is useful for latches, counters, and other memory gates.
-But it is (right now at least) a global store, which means accessible from all expression gates.
-In a game where we literally have an infinite range signal transmitter/receiver that's probably not a huge deal, but those are at least 3 layers high and 4x4 not counting the signal definition inputs.
-I might make them use those or something instead, idk.
-For now I just wanted to get all the low hanging fruit ideas I had floating around implemented.
-
 ## Roadmap
 
-- [ ] real sprites (I'm currently just repurposing vanilla ones)
+- [ ] real sprites (I'm currently just repurposing vanilla and sample ones)
+- [ ] add variables to the gate sprite, so the inputs are clear (either just statically in the image or rendered overlays or shaders or something)
+- [ ] vet adding a dynamic overlay to the gate itself that shows its code (at _least_ show it on hover like vanilla components do)
 - [ ] proper docs
 - [ ] images in said docs
 - [ ] bigger monitors, or maybe a writable variant of the built-in label
 - [ ] probably more functions in the expression runtime
+
+## Musings
+
+My first pass on this actually embedded an entire programming language runtime and let you work with it in the gate.
+It embedded TCL using the Eagle runtime.
+I thought this would be a great idea, but it turns out it was kind of lame.
+Some combination of having too much power and not enough to do with it.
+
+I could see an embeddable lisp language fitting pretty well (Janet I'm looking at you) after seeing how much composing I'm doing with the functions added so far:
+```
+paint(stack(b, rotate(c)), a))
+```
+But I'm really happy with the simplicity of the current expression language implementation for now.
 
 ## Usage
 
