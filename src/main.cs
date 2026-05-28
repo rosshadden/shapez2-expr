@@ -58,7 +58,7 @@ public class Main : IMod {
 			.WithoutEfficiencyData();
 
 		var gateGroup = BuildingGroup.Create(gateGroupId)
-			.WithTitle(new Core.Localization.RawText("Expression Gate"))
+			.WithTitle(new Core.Localization.RawText("Expr Gate"))
 			.WithDescription(new Core.Localization.RawText("Evaluates an NCalc expression. Inputs: West=a, North=b, South=c."))
 			.WithIcon(gateIcon)
 			.AsNonTransportableBuilding()
@@ -94,7 +94,7 @@ public class Main : IMod {
 			.WithoutEfficiencyData();
 
 		var monitorGroup = BuildingGroup.Create(monitorGroupId)
-			.WithTitle(new Core.Localization.RawText("Expression Monitor"))
+			.WithTitle(new Core.Localization.RawText("Expr Monitor"))
 			.WithDescription(new Core.Localization.RawText("Displays the wire signal as text. Input: West."))
 			.WithIcon(monitorIcon)
 			.AsNonTransportableBuilding()

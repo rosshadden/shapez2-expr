@@ -38,8 +38,8 @@ public class GateBuildingModules : IBuildingModules {
 		if (stack == null) return;
 		var dlg = stack.Show(Globals.Resources.UIDialogSimpleInputPrefab);
 		dlg.Init(
-			new RawText("Expression Gate"),
-			new RawText("NCalc expression. West=a, North=b, South=c. E.g.: a*2   if(a>0,a,0)   if(a in ('r','g'),a,'w')"),
+			new RawText("Expr Gate"),
+			new RawText("NCalc expression. West=a, North=b, South=c"),
 			new RawText("Confirm"),
 			new RawText(state.Script ?? ""));
 		var restore = MakeTextarea(dlg);
@@ -59,10 +59,7 @@ public class GateBuildingModules : IBuildingModules {
 		return hudInput != null ? InputFieldTmpField?.GetValue(hudInput) : null;
 	}
 
-	// Reshapes the shared SimpleInput dialog into a multi-line textarea for our
-	// editor: MultiLineNewline + top-left alignment + LayoutElement override.
-	// Returns an action that restores the original state so other Configure
-	// flows (constant signal, label, etc.) still see a single-line input.
+	// Setup multi-line textarea.
 	private static Action MakeTextarea(HUDDialogSimpleInput dlg) {
 		try {
 			var hudInput = DialogInputFieldField?.GetValue(dlg);

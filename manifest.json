@@ -1,7 +1,7 @@
 {
 	"$schema": "https://shapez2.raphdf201.net/assets/manifestSchema.json",
 	"Version": "1.0.0",
-	"Description": "Expression gate, inspired by the GMod Wiremod Expression2 gate.",
+	"Description": "Expression gate, inspired by the GMod Wiremod E2 gate.",
 	"Author": "rawsp33d",
 	"SavedModVersionCompabilityRangeWithSelf": "1.*.*",
 	"GameVersionSupportRange": "^1.0.0",
