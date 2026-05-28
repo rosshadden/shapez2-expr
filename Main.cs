@@ -1,16 +1,13 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using Core.Localization;
-using Game.Content.Features.Signals.Connections;
 using Game.Core.Coordinates;
-using Game.Core.Map.Simulation;
 using ShapezShifter.Flow;
 using ShapezShifter.Flow.Atomic;
 using ShapezShifter.Flow.ConnectorData;
 using ShapezShifter.Flow.Research;
 using ShapezShifter.Flow.Toolbar;
+using ShapezShifter.Hijack;
 using ShapezShifter.Kit;
 using ShapezShifter.Textures;
 using UnityEngine;
@@ -37,79 +34,52 @@ public class Main : IMod {
 	private static void RegisterBuildings(ILogger logger) {
 		var icon = LoadIcon();
 
-		for (int n = 1; n <= 3; n++) {
-			var defId = new BuildingDefinitionId($"ExprGate{n}In");
-			var groupId = new BuildingDefinitionGroupId($"ExprGateGroup{n}In");
+		// Insert the Expr submenu group first so the building's ToolbarRewirer can
+		// navigate into it. The group lands at Root→wires(2)→last→after, which
+		// makes it the new last child of the wires tab (index ^1 from then on).
+		GameRewirers.AddRewirer(new ExprToolbarGroup(icon));
 
-			var connectors = BuildConnectors(n);
+		var defId = new BuildingDefinitionId("ExprGate");
+		var groupId = new BuildingDefinitionGroupId("ExprGateGroup");
 
-			var building = Building.Create(defId)
-				.WithConnectorData(connectors)
-				.DynamicallyRendering<GateRenderer, GateSimulation, GateDrawData>(new GateDrawData())
-				.WithCopiedStaticDrawData(new BuildingDefinitionId("LogicGateNotInternalVariant"))
-				.WithoutSound()
-				.WithoutSimulationConfiguration()
-				.WithoutEfficiencyData();
+		// West = a (receiver 0), North = b (receiver 1), South = c (receiver 2).
+		// AddWireInput order determines GetSignalReceiver index order.
+		var connectors = BuildingConnectors.SingleTile()
+			.AddWireOutput(WireConnectorConfig.DefaultOutput())
+			.AddWireInput(WireConnectorConfig.CustomInput(TileDirection.West))
+			.AddWireInput(WireConnectorConfig.CustomInput(TileDirection.North))
+			.AddWireInput(WireConnectorConfig.CustomInput(TileDirection.South))
+			.Build();
 
-			var inputList = string.Join(", ", InputLabels(n));
-			var group = BuildingGroup.Create(groupId)
-				.WithTitle(new RawText($"Expression Gate ({n}in)"))
-				.WithDescription(new RawText($"NCalc expression. Inputs: {inputList}. Output: expression result."))
-				.WithIcon(icon)
-				.AsNonTransportableBuilding()
-				.WithPreferredPlacement(DefaultPreferredPlacementMode.Single)
-				.WithDefaultStructureOverview();
+		var building = Building.Create(defId)
+			.WithConnectorData(connectors)
+			.DynamicallyRendering<GateRenderer, GateSimulation, GateDrawData>(new GateDrawData())
+			.WithCopiedStaticDrawData(new BuildingDefinitionId("LogicGateOrInternalVariant"))
+			.WithoutSound()
+			.WithoutSimulationConfiguration()
+			.WithoutEfficiencyData();
 
-			AtomicBuildings.Extend()
-				.AllScenarios()
-				.WithBuilding(building, group)
-				.UnlockedAtMilestone(new ByIndexMilestoneSelector(0))
-				.WithDefaultPlacement()
-				.InToolbar(ToolbarElementLocator.Root().ChildAt(2).ChildAt(^1).InsertAfter())
-				.WithSimulation(new GateSimulationFactoryBuilder(n), logger)
-				.WithCustomModules(new GateBuildingModules())
-				.WithoutPrediction()
-				.Build();
-		}
+		var group = BuildingGroup.Create(groupId)
+			.WithTitle(new Core.Localization.RawText("Expression Gate"))
+			.WithDescription(new Core.Localization.RawText("Evaluates an NCalc expression. Inputs: West=a, North=b, South=c."))
+			.WithIcon(icon)
+			.AsNonTransportableBuilding()
+			.WithPreferredPlacement(DefaultPreferredPlacementMode.Single)
+			.WithDefaultStructureOverview();
 
-		logger.Info?.Log("[Expr] ExprGate 1/2/3-input variants registered");
-	}
+		// Place inside the Expr group: Root→wires(2)→last(^1, now the Expr group)→first slot.
+		AtomicBuildings.Extend()
+			.AllScenarios()
+			.WithBuilding(building, group)
+			.UnlockedAtMilestone(new ByIndexMilestoneSelector(0))
+			.WithDefaultPlacement()
+			.InToolbar(ToolbarElementLocator.Root().ChildAt(2).ChildAt(^1).ChildAt(0).InsertBefore())
+			.WithSimulation(new GateSimulationFactoryBuilder(), logger)
+			.WithCustomModules(new GateBuildingModules())
+			.WithoutPrediction()
+			.Build();
 
-	// Builds connector data for an n-input, 1-output gate.
-	// Each input tile stacks northward: tile (0,0) carries input "a" and the East output;
-	// tile (0,1) carries input "b"; tile (0,2) carries input "c".
-	// All inputs face West; the single output faces East at tile (0,0).
-	private static IBuildingConnectorData BuildConnectors(int n) {
-		var ios = new List<IBuildingIO>();
-
-		for (int i = 0; i < n; i++) {
-			ios.Add(new BuildingSignalInput {
-				Position_L = new TileVector { x = 0, y = i },
-				TileDirection = TileDirection.West,
-				_IOType = BuildingSignalIOType.Wire,
-			});
-		}
-
-		ios.Add(new BuildingSignalOutput {
-			Position_L = TileVector.Zero,
-			TileDirection = TileDirection.East,
-			_IOType = BuildingSignalIOType.Wire,
-		});
-
-		var tiles = Enumerable.Range(0, n)
-			.Select(i => new TileVector { x = 0, y = i })
-			.ToArray();
-
-		var bounds = LocalTileBounds.From(TileVector.Zero, new TileVector { y = n - 1 });
-		var center = LocalVector.Lerp((LocalVector)bounds.Min, (LocalVector)bounds.Max, 0.5f);
-
-		return new BuildingConnectorData(ios, tiles, bounds, center, bounds.Dimensions);
-	}
-
-	private static string[] InputLabels(int n) {
-		var labels = new string[n];
-		for (int i = 0; i < n; i++) labels[i] = ((char)('a' + i)).ToString();
-		return labels;
+		logger.Info?.Log("[Expr] ExprGate registered");
 	}
 
 	private static Sprite LoadIcon() {

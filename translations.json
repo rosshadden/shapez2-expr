@@ -1,4 +1,6 @@
 {
   "en-US": {
+    "expr.toolbar-group.title": "Expr",
+    "expr.toolbar-group.description": "Expression-based gates and tools"
   }
 }

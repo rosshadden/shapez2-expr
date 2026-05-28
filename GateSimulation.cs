@@ -16,16 +16,14 @@ public class GateSimulation : Simulation<GateSimulationState>, ISignalSimulation
 	private static readonly string[] InputLabels = { "a", "b", "c" };
 
 	private readonly SignalConductorInput[] _inputs;
-	private readonly int _inputCount;
 	private readonly SignalConductorOutput _out = new();
 	private readonly SignalCodec _codec;
 	private Expression _expr;
 	private string _loadedScript;
 	private bool _loggedFirstEval;
 
-	public GateSimulation(GateSimulationState state, SignalCodec codec, int inputCount) : base(state) {
+	public GateSimulation(GateSimulationState state, SignalCodec codec) : base(state) {
 		_codec = codec;
-		_inputCount = inputCount;
 		_inputs = new[] {
 			new SignalConductorInput(state.In0),
 			new SignalConductorInput(state.In1),
@@ -33,10 +31,8 @@ public class GateSimulation : Simulation<GateSimulationState>, ISignalSimulation
 		};
 	}
 
-	public int InputCount => _inputCount;
-
 	public int NumSignalProviders => 1;
-	public int NumSignalReceivers => _inputCount;
+	public int NumSignalReceivers => 3;
 	public ISignalProvider GetSignalProvider(int i) => _out;
 	public ISignalReceiver GetSignalReceiver(int i) => _inputs[i];
 
@@ -50,14 +46,14 @@ public class GateSimulation : Simulation<GateSimulationState>, ISignalSimulation
 		for (int s = 0; s < n; s++) {
 			var tick = baseTick + new SignalTicks(s);
 
-			ISignal[] sigs = new ISignal[_inputCount];
-			for (int i = 0; i < _inputCount; i++)
+			ISignal[] sigs = new ISignal[3];
+			for (int i = 0; i < 3; i++)
 				_inputs[i].TryPopSignal(startTicks, tick, out sigs[i]);
 
 			ISignal output;
 			if (_expr != null) {
 				for (int i = 0; i < InputLabels.Length; i++)
-					_expr.Parameters[InputLabels[i]] = i < _inputCount ? _codec.ToObject(sigs[i]) : null;
+					_expr.Parameters[InputLabels[i]] = _codec.ToObject(sigs[i]);
 				try {
 					var result = _expr.Evaluate();
 					output = _codec.FromObject(result);

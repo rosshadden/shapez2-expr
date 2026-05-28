@@ -26,21 +26,20 @@ public class GateBuildingModules : IBuildingModules {
 		return new IHUDSidePanelModuleData[] {
 			new HUDSidePanelModuleGenericButton.Data(
 				new RawText("Configure"),
-				() => ShowConfigureDialog(state, gate.InputCount)),
+				() => ShowConfigureDialog(state)),
 		};
 	}
 
 	public IEnumerable<IHUDSidePanelModuleData> GetInfoModules(IBuildingDefinition definition) =>
 		Array.Empty<IHUDSidePanelModuleData>();
 
-	private static void ShowConfigureDialog(GateSimulationState state, int inputCount) {
+	private static void ShowConfigureDialog(GateSimulationState state) {
 		var stack = DialogStackHolder.Instance;
 		if (stack == null) return;
 		var dlg = stack.Show(Globals.Resources.UIDialogSimpleInputPrefab);
-		var inputs = string.Join(", ", System.Linq.Enumerable.Range(0, inputCount).Select(i => ((char)('a' + i)).ToString()));
 		dlg.Init(
 			new RawText("Expression Gate"),
-			new RawText($"NCalc expression. Inputs: {inputs}. Examples: a*2   if(a>0,a,0)   if(a in ('r','g'),a,'w')"),
+			new RawText("NCalc expression. West=a, North=b, South=c. E.g.: a*2   if(a>0,a,0)   if(a in ('r','g'),a,'w')"),
 			new RawText("Confirm"),
 			new RawText(state.Script ?? ""));
 		var restore = MakeTextarea(dlg);
