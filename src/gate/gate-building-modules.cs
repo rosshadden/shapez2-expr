@@ -39,7 +39,7 @@ public class GateBuildingModules : IBuildingModules {
 		var dlg = stack.Show(Globals.Resources.UIDialogSimpleInputPrefab);
 		dlg.Init(
 			new RawText("Expr Gate"),
-			new RawText("NCalc expression. West=a, North=b, South=c"),
+			new RawText("NCalc. Inputs: a(W) b(N) c(S) tick\nShape: rotate(s) paint(s,c) stack(bot,top) layer(s,n) quadrant(s,n)\nStr: len(s) substr(s,i,n) concat(a,b,...)\nMem: get(k) set(k,v)  Pred: isNull isShape isColor"),
 			new RawText("Confirm"),
 			new RawText(state.Script ?? ""));
 		var restore = MakeTextarea(dlg);

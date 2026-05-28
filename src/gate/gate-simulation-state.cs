@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Game.Content.Features.Signals.Conductor;
 using Game.Core.Serialization;
 using Game.Core.Simulation;
@@ -10,6 +11,10 @@ public class GateSimulationState : ISimulationState {
 	public readonly SignalConductorInputState In1 = new();
 	public readonly SignalConductorInputState In2 = new();
 	public string Script = "";
+
+	// Runtime-only — not serialized, reset on game load
+	public long Tick;
+	public readonly Dictionary<string, object> Vars = new();
 
 	public void Sync(ISerializationVisitor visitor) {
 		In0.Sync(visitor);
