@@ -22,6 +22,7 @@ public class Main : IMod {
 		try {
 			DialogStackHolder.Install();
 			ConfirmKeySuppressor.Install();
+			SignalSerializerPatch.Install();
 		} catch (Exception ex) {
 			logger.Exception?.LogException(ex);
 		}

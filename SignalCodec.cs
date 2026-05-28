@@ -24,10 +24,9 @@ public class SignalCodec {
 	public string Encode(ISignal sig) {
 		if (sig == null || sig is NullSignal) return "0";
 		if (sig is IntegerSignal i) return i.Value.ToString(CultureInfo.InvariantCulture);
-		if (sig is BeltItemSignal b && b.Value is ShapeItem shape)
-			return shape.Definition.Hash;
-		if (sig is FluidSignal f && f.Value is ColorFluid cf)
-			return cf.Color.Code.ToString();
+		if (sig is BeltItemSignal b && b.Value is ShapeItem shape) return shape.Definition.Hash;
+		if (sig is FluidSignal f && f.Value is ColorFluid cf) return cf.Color.Code.ToString();
+		if (sig is ExprSignal e) return e.Value?.ToString() ?? "null";
 		return "0";
 	}
 
@@ -65,6 +64,7 @@ public class SignalCodec {
 		if (sig is IntegerSignal i) return i.Value;
 		if (sig is BeltItemSignal b && b.Value is ShapeItem shape) return shape.Definition.Hash;
 		if (sig is FluidSignal f && f.Value is ColorFluid cf) return cf.Color.Code.ToString();
+		if (sig is ExprSignal e) return e.Value;
 		return null;
 	}
 
@@ -75,7 +75,10 @@ public class SignalCodec {
 		if (value is long lv) return IntegerSignal.Get((int)lv);
 		if (value is double dv) return IntegerSignal.Get((int)Math.Round(dv));
 		if (value is decimal mv) return IntegerSignal.Get((int)Math.Round(mv));
-		if (value is string sv) return Decode(sv);
+		if (value is string sv) {
+			var decoded = Decode(sv);
+			return decoded is NullSignal && sv.Length > 0 ? new ExprSignal(sv) : decoded;
+		}
 		return NullSignal.Instance;
 	}
 
