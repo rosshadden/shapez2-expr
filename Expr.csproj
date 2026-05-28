@@ -17,10 +17,6 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <Compile Remove="Eagle/**" />
-    </ItemGroup>
-
-    <ItemGroup>
         <PackageReference Include="MonoMod.RuntimeDetour" Version="25.3.0">
             <ExcludeAssets>runtime</ExcludeAssets>
         </PackageReference>
