@@ -32,66 +32,129 @@ public class Main : IMod {
 	}
 
 	private static void RegisterBuildings(ILogger logger) {
-		var icon = LoadIcon();
+		var gateIcon = LoadIcon("ExprGateIcon.png", MakeGateIcon);
+		var monitorIcon = LoadIcon("ExprMonitorIcon.png", MakeMonitorIcon);
+		var toolbar = new ExprToolbarGroup(gateIcon);
 
-		// Insert the Expr submenu group first so the building's ToolbarRewirer can
-		// navigate into it. The group lands at Root→wires(2)→last→after, which
-		// makes it the new last child of the wires tab (index ^1 from then on).
-		GameRewirers.AddRewirer(new ExprToolbarGroup(icon));
-
-		var defId = new BuildingDefinitionId("ExprGate");
-		var groupId = new BuildingDefinitionGroupId("ExprGateGroup");
+		var gateDefId = new BuildingDefinitionId("ExprGate");
+		var gateGroupId = new BuildingDefinitionGroupId("ExprGateGroup");
 
 		// West = a (receiver 0), North = b (receiver 1), South = c (receiver 2).
 		// AddWireInput order determines GetSignalReceiver index order.
-		var connectors = BuildingConnectors.SingleTile()
+		var gateConnectors = BuildingConnectors.SingleTile()
 			.AddWireOutput(WireConnectorConfig.DefaultOutput())
 			.AddWireInput(WireConnectorConfig.CustomInput(TileDirection.West))
 			.AddWireInput(WireConnectorConfig.CustomInput(TileDirection.North))
 			.AddWireInput(WireConnectorConfig.CustomInput(TileDirection.South))
 			.Build();
 
-		var building = Building.Create(defId)
-			.WithConnectorData(connectors)
+		var gateBuilding = Building.Create(gateDefId)
+			.WithConnectorData(gateConnectors)
 			.DynamicallyRendering<GateRenderer, GateSimulation, GateDrawData>(new GateDrawData())
 			.WithCopiedStaticDrawData(new BuildingDefinitionId("LogicGateOrInternalVariant"))
 			.WithoutSound()
 			.WithoutSimulationConfiguration()
 			.WithoutEfficiencyData();
 
-		var group = BuildingGroup.Create(groupId)
+		var gateGroup = BuildingGroup.Create(gateGroupId)
 			.WithTitle(new Core.Localization.RawText("Expression Gate"))
 			.WithDescription(new Core.Localization.RawText("Evaluates an NCalc expression. Inputs: West=a, North=b, South=c."))
-			.WithIcon(icon)
+			.WithIcon(gateIcon)
 			.AsNonTransportableBuilding()
 			.WithPreferredPlacement(DefaultPreferredPlacementMode.Single)
 			.WithDefaultStructureOverview();
 
-		// Place inside the Expr group: Root→wires(2)→last(^1, now the Expr group)→first slot.
 		AtomicBuildings.Extend()
 			.AllScenarios()
-			.WithBuilding(building, group)
+			.WithBuilding(gateBuilding, gateGroup)
 			.UnlockedAtMilestone(new ByIndexMilestoneSelector(0))
 			.WithDefaultPlacement()
-			.InToolbar(ToolbarElementLocator.Root().ChildAt(2).ChildAt(^1).ChildAt(0).InsertBefore())
+			.InToolbar(toolbar)
 			.WithSimulation(new GateSimulationFactoryBuilder(), logger)
 			.WithCustomModules(new GateBuildingModules())
 			.WithoutPrediction()
 			.Build();
 
 		logger.Info?.Log("[Expr] ExprGate registered");
+
+		var monitorDefId = new BuildingDefinitionId("ExprMonitor");
+		var monitorGroupId = new BuildingDefinitionGroupId("ExprMonitorGroup");
+
+		var monitorConnectors = BuildingConnectors.SingleTile()
+			.AddWireInput(WireConnectorConfig.CustomInput(TileDirection.West))
+			.Build();
+
+		var monitorBuilding = Building.Create(monitorDefId)
+			.WithConnectorData(monitorConnectors)
+			.DynamicallyRendering<MonitorRenderer, MonitorSimulation, MonitorDrawData>(new MonitorDrawData())
+			.WithCopiedStaticDrawData(new BuildingDefinitionId("DisplayDefaultInternalVariant"))
+			.WithoutSound()
+			.WithoutSimulationConfiguration()
+			.WithoutEfficiencyData();
+
+		var monitorGroup = BuildingGroup.Create(monitorGroupId)
+			.WithTitle(new Core.Localization.RawText("Expression Monitor"))
+			.WithDescription(new Core.Localization.RawText("Displays the wire signal as text. Input: West."))
+			.WithIcon(monitorIcon)
+			.AsNonTransportableBuilding()
+			.WithPreferredPlacement(DefaultPreferredPlacementMode.Single)
+			.WithDefaultStructureOverview();
+
+		AtomicBuildings.Extend()
+			.AllScenarios()
+			.WithBuilding(monitorBuilding, monitorGroup)
+			.UnlockedAtMilestone(new ByIndexMilestoneSelector(0))
+			.WithDefaultPlacement()
+			.InToolbar(toolbar)
+			.WithSimulation(new MonitorSimulationFactoryBuilder(), logger)
+			.WithCustomModules(new MonitorBuildingModules())
+			.WithoutPrediction()
+			.Build();
+
+		logger.Info?.Log("[Expr] ExprMonitor registered");
 	}
 
-	private static Sprite LoadIcon() {
+	private static Sprite LoadIcon(string fileName, Func<Sprite> fallback) {
 		try {
-			var path = Res.SubPath("ExprGateIcon.png");
+			var path = Res.SubPath(fileName);
 			if (File.Exists(path))
 				return FileTextureLoader.LoadTextureAsSprite(path, out _);
 		} catch { }
+		return fallback();
+	}
+
+	// Simple "fx" icon: white background with a dark "f(x)" letterform feel —
+	// two bright pixels top-left, one bottom-right, representing inputs/output.
+	private static Sprite MakeGateIcon() {
 		var tex = new Texture2D(8, 8);
-		var pixels = new Color[64];
-		Array.Fill(pixels, Color.white);
-		tex.SetPixels(pixels);
+		var px = new Color[64];
+		var bg = new Color(0.15f, 0.15f, 0.2f);
+		var fg = Color.white;
+		Array.Fill(px, bg);
+		// top-left cluster (inputs a,b)
+		px[7 * 8 + 1] = fg; px[7 * 8 + 2] = fg;
+		px[6 * 8 + 1] = fg;
+		// bottom-right (output)
+		px[0 * 8 + 6] = fg; px[0 * 8 + 7] = fg;
+		px[1 * 8 + 7] = fg;
+		tex.SetPixels(px);
+		tex.Apply();
+		return Sprite.Create(tex, new Rect(0, 0, 8, 8), new Vector2(0.5f, 0.5f));
+	}
+
+	// Simple "screen" icon: bright border with dark center.
+	private static Sprite MakeMonitorIcon() {
+		var tex = new Texture2D(8, 8);
+		var px = new Color[64];
+		var border = new Color(0.8f, 0.8f, 0.85f);
+		var inner = new Color(0.1f, 0.1f, 0.15f);
+		// Fill inner
+		for (int y = 0; y < 8; y++)
+			for (int x = 0; x < 8; x++)
+				px[y * 8 + x] = (x == 0 || x == 7 || y == 0 || y == 7) ? border : inner;
+		// Blinking cursor dot in center
+		px[3 * 8 + 3] = border;
+		tex.SetPixels(px);
 		tex.Apply();
 		return Sprite.Create(tex, new Rect(0, 0, 8, 8), new Vector2(0.5f, 0.5f));
 	}

@@ -124,5 +124,13 @@
             <HintPath>$(SPZ2_PATH)\Unity.Core.dll</HintPath>
             <Private>False</Private>
         </Reference>
+        <Reference Include="Unity.Mathematics">
+            <HintPath>$(SPZ2_PATH)\Unity.Mathematics.dll</HintPath>
+            <Private>False</Private>
+        </Reference>
+        <Reference Include="Unity.TextMeshPro">
+            <HintPath>$(SPZ2_PATH)\Unity.TextMeshPro.dll</HintPath>
+            <Private>False</Private>
+        </Reference>
     </ItemGroup>
 </Project>
