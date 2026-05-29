@@ -196,7 +196,6 @@ public class GateSimulation : Simulation<GateSimulationState>, ISignalSimulation
 		return string.Join(":", layers);
 	}
 
-	// Paint all non-empty quadrants with the given single-char color code
 	private static string ShapePaint(string hash, string colorCode) {
 		if (colorCode == null || colorCode.Length != 1) return hash;
 		char color = colorCode[0];
@@ -217,7 +216,7 @@ public class GateSimulation : Simulation<GateSimulationState>, ISignalSimulation
 		return n >= 0 && n < layers.Length ? layers[n] : "";
 	}
 
-	// Returns the 2-char quadrant string (e.g. "Cu") for quadrant n of layer 0
+	// returns "Cu"-style 2-char string for quadrant n of layer 0
 	private static string ShapeQuadrant(string hash, int n) {
 		var layer = hash.Split(':')[0];
 		int start = n * 2;

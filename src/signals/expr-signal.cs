@@ -3,13 +3,6 @@ using Game.Content.Features.Signals;
 
 namespace Expr;
 
-// Custom signal type that carries arbitrary values (strings, booleans, etc.)
-// through the standard Shapez 2 wire network.
-//
-// Standard game buildings treat this as null (graceful fallback).
-// ExprGate/ExprMonitor encode and decode it via SignalCodec.
-// On save, SignalSerializerPatch converts any ExprSignal in the conductor
-// buffer to NullSignal so the game serializer doesn't throw.
 public sealed class ExprSignal : ISignal {
 	public readonly object Value;
 

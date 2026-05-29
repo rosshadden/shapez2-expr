@@ -7,8 +7,6 @@ using Game.Core.Simulation;
 
 namespace Expr;
 
-// Reads one wire input and stores the encoded signal text in state so the
-// renderer can display it without accessing the simulation on every draw.
 public class MonitorSimulation : Simulation<MonitorSimulationState>, ISignalSimulation, IUpdatableSimulation {
 	private readonly SignalConductorInput _input;
 	private readonly SignalCodec _codec;

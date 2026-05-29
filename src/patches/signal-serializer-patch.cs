@@ -7,10 +7,7 @@ using MonoMod.RuntimeDetour;
 
 namespace Expr;
 
-// Prevents save crashes when ExprSignal values are in a conductor buffer.
-// The game's SignalSerializer throws on any signal type it doesn't recognise,
-// so we intercept Serialize and substitute NullSignal for any ExprSignal.
-// Wire signals are recomputed from gate state on load, so this is lossless.
+// substitutes NullSignal for ExprSignal on save; wire signals recompute on load
 public static class SignalSerializerPatch {
 	private static Hook _hook;
 

@@ -5,7 +5,6 @@ using UnityEngine;
 
 namespace Expr;
 
-// Toolbar group.
 public class ExprToolbarGroup : IToolbarEntryInsertLocation {
 	private readonly Sprite _icon;
 	private GroupToolbarElementData _group;

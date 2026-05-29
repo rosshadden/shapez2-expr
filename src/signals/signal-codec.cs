@@ -4,7 +4,7 @@ using Game.Content.Features.Signals;
 
 namespace Expr;
 
-// Converts between ISignal and .NET objects / strings.
+// Converts between ISignal and .NET primitives.
 public class SignalCodec {
 	private readonly IShapeRegistry _shapes;
 	private readonly IShapeIdManager _shapeIds;

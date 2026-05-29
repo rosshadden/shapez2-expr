@@ -5,12 +5,6 @@ using Unity.Mathematics;
 
 namespace Expr;
 
-// Renders the monitor's current DisplayText using the text mesh system borrowed
-// from the Display building. The DI container injects ITextMeshAccessor the same
-// way it does for DisplaySimulationRenderer and ConstantSignalSimulationRenderer.
-//
-// Per-entity mesh cache lives in a ConditionalWeakTable so entries are dropped
-// automatically when a building is garbage-collected (e.g. on demolish).
 public class MonitorRenderer : StatelessBuildingSimulationRenderer<MonitorSimulation, MonitorDrawData> {
 	private readonly ITextMeshAccessor _textAccessor;
 	private readonly ConditionalWeakTable<MonitorSimulation, CachedEntry> _cache = new();

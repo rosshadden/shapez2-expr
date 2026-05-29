@@ -3,10 +3,7 @@ using MonoMod.RuntimeDetour;
 
 namespace Expr;
 
-// Mods don't get DI, so we grab the live HUDDialogStack from its Update tick.
-// Each scene (main menu vs game) has its own HUDDialogStack; when scenes change
-// the old one stops ticking and the new one takes over, so we always overwrite
-// to track whichever is currently active.
+// grabs the live HUDDialogStack from its Update tick; overwrites on scene change
 public static class DialogStackHolder {
 	public static HUDDialogStack Instance;
 	private static Hook _hook;

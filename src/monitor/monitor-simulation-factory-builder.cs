@@ -11,9 +11,6 @@ public class MonitorSimulationFactoryBuilder
 		out EmptyCustomSimulationConfiguration config) {
 		config = new EmptyCustomSimulationConfiguration();
 
-		// Capture the Display building's text-rendering draw data once so the
-		// MonitorRenderer can borrow its material and font without storing them
-		// per-building. We go through the group to avoid guessing the definition ID.
 		if (MonitorTextResources.DisplayDrawData == null
 				&& deps.Mode.Buildings.TryGetDefinitionGroup(
 					new BuildingDefinitionGroupId("DisplayDefaultVariant"), out var grp)) {

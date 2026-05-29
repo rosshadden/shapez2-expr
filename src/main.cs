@@ -40,8 +40,7 @@ public class Main : IMod {
 		var gateDefId = new BuildingDefinitionId("ExprGate");
 		var gateGroupId = new BuildingDefinitionGroupId("ExprGateGroup");
 
-		// West = a (receiver 0), North = b (receiver 1), South = c (receiver 2).
-		// AddWireInput order determines GetSignalReceiver index order.
+		// West=a, North=b, South=c
 		var gateConnectors = BuildingConnectors.SingleTile()
 			.AddWireOutput(WireConnectorConfig.DefaultOutput())
 			.AddWireInput(WireConnectorConfig.CustomInput(TileDirection.West))
@@ -124,18 +123,14 @@ public class Main : IMod {
 		return fallback();
 	}
 
-	// Simple "fx" icon: white background with a dark "f(x)"
-	// TODO: not working right
 	private static Sprite MakeGateIcon() {
 		var tex = new Texture2D(8, 8);
 		var px = new Color[64];
 		var bg = new Color(0.15f, 0.15f, 0.2f);
 		var fg = Color.white;
 		Array.Fill(px, bg);
-		// top-left cluster (inputs)
 		px[7 * 8 + 1] = fg; px[7 * 8 + 2] = fg;
 		px[6 * 8 + 1] = fg;
-		// bottom-right (output)
 		px[0 * 8 + 6] = fg; px[0 * 8 + 7] = fg;
 		px[1 * 8 + 7] = fg;
 		tex.SetPixels(px);
@@ -143,17 +138,14 @@ public class Main : IMod {
 		return Sprite.Create(tex, new Rect(0, 0, 8, 8), new Vector2(0.5f, 0.5f));
 	}
 
-	// Simple "screen" icon: bright border with dark center.
 	private static Sprite MakeMonitorIcon() {
 		var tex = new Texture2D(8, 8);
 		var px = new Color[64];
 		var border = new Color(0.8f, 0.8f, 0.85f);
 		var inner = new Color(0.1f, 0.1f, 0.15f);
-		// fill inner
 		for (int y = 0; y < 8; y++)
 			for (int x = 0; x < 8; x++)
 				px[y * 8 + x] = (x == 0 || x == 7 || y == 0 || y == 7) ? border : inner;
-		// blinking cursor dot in center
 		px[3 * 8 + 3] = border;
 		tex.SetPixels(px);
 		tex.Apply();
